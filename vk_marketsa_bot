@@ -1,0 +1,158 @@
+
+import vk_api
+from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
+from datetime import datetime
+import re
+
+TOKEN = "ВАШ_ТОКЕН"
+GROUP_ID = ВАШ_ID
+
+vk_session = vk_api.VkApi(token=TOKEN)
+longpoll = VkBotLongPoll(vk_session, GROUP_ID)
+vk = vk_session.get_api()
+
+users = {}
+
+def format_number(num):
+    return f"{int(num):,}".replace(",", " ")
+
+def get_keyboard(buttons):
+    return {
+        "one_time": False,
+        "buttons": [[{"action": {"type": "text", "label": label}, "color": "primary"} for label in row] for row in buttons]
+    }
+
+def handle_start(user_id, username):
+    if user_id not in users:
+        users[user_id] = {
+            "reg_date": datetime.now().strftime("%d-%m %H:%M"),
+            "buy": 0,
+            "sell": 0,
+            "deals": 0
+        }
+    vk.messages.send(
+        user_id=user_id,
+        message=f"🦋{username}, добро пожаловать в маркет!
+
+Воспользуйтесь клавиатурой:",
+        keyboard=str(get_keyboard([["Купить", "Продать"], ["Информация", "Игровой чат"], ["Профиль", "Настройки"], ["🌷 Служба поддержки"]])),
+        random_id=0
+    )
+
+def handle_profile(user_id):
+    u = users.get(user_id, {"buy": 0, "sell": 0, "deals": 0, "reg_date": "неизвестно"})
+    turnover = u["buy"] + u["sell"]
+    vk.messages.send(
+        user_id=user_id,
+        message=f"👤 Профиль
+
+🛍️ За всё время:
+~ Куплено: {format_number(u['buy'])} Byte
+~ Продано: {format_number(u['sell'])} Byte
+~ Оборот: {format_number(turnover)} Byte
+~ Сделок: {u['deals']}
+
+🎉 Регистрация {u['reg_date']} мая",
+        random_id=0
+    )
+
+def handle_info(user_id):
+    message = (
+        "Процессинг (RUB)
+"
+        "📈 Мы продаём: 0.25 → 1К Byte
+"
+        "📉 Мы покупаем: 0.20 → 1К Byte
+"
+        "💰 Можем скупить: 8 000 000 Byte
+
+"
+        "Криптобот (RUB/USDT)
+"
+        "📈 Мы продаём: 0.30 → 1К Byte
+"
+        "📉 Мы покупаем: 0.10 → 1К Byte
+"
+        "💰 Можем скупить: 1 165 968 Byte
+
+"
+        "Криптобот (RUB/TON)
+"
+        "📈 Мы продаём: 0.30 → 1К Byte
+"
+        "📉 Мы покупаем: 0.10 → 1К Byte
+"
+        "💰 Можем скупить: 87 713 Byte
+
+"
+        "🌷 Можем продать: 7 104 000 Byte
+"
+        "🌷 Можем скупить: 8 626 840 Byte
+
+"
+        "🌻 Оборот за сегодня: 16 496 000 Byte
+"
+        "🍃 Проведено сделок сегодня: 19"
+    )
+    vk.messages.send(user_id=user_id, message=message, attachment="", random_id=0)
+
+def handle_chat(user_id):
+    vk.messages.send(user_id=user_id, message="💃🏻 Найти беседу
+
+Залетай в игровой чат обменника:
+@tejskl", random_id=0)
+
+def handle_support(user_id):
+    vk.messages.send(user_id=user_id, message="🌷 Служба поддержки
+
+Последний заказ
+Список пуст
+
+Сборка от 25-го апреля, 18:13", random_id=0)
+
+# Простая реализация: хранение уведомлений и рассылки
+user_settings = {}
+
+def handle_settings(user_id):
+    settings = user_settings.get(user_id, {"notify": True, "mailing": True})
+    notify = "🟢Вкл" if settings["notify"] else "🔴Выкл"
+    mailing = "🟢Вкл" if settings["mailing"] else "🔴Выкл"
+    vk.messages.send(
+        user_id=user_id,
+        message=f"⚙️ Настройки аккаунта
+
+Уведомления: {notify}
+Рассылка: {mailing}",
+        keyboard=str(get_keyboard([["Уведомления", "Рассылка"]])),
+        random_id=0
+    )
+
+def toggle_setting(user_id, field):
+    if user_id not in user_settings:
+        user_settings[user_id] = {"notify": True, "mailing": True}
+    user_settings[user_id][field] = not user_settings[user_id][field]
+    handle_settings(user_id)
+
+for event in longpoll.listen():
+    if event.type == VkBotEventType.MESSAGE_NEW:
+        user_id = event.obj.message['from_id']
+        msg = event.obj.message['text'].strip()
+        username = f"id{user_id}"
+        msg_lower = msg.lower()
+
+        if msg_lower == "/start":
+            handle_start(user_id, username)
+        elif msg == "Профиль":
+            handle_profile(user_id)
+        elif msg == "Информация":
+            handle_info(user_id)
+        elif msg == "Игровой чат":
+            handle_chat(user_id)
+        elif msg == "🌷 Служба поддержки":
+            handle_support(user_id)
+        elif msg == "Настройки":
+            handle_settings(user_id)
+        elif msg == "Уведомления":
+            toggle_setting(user_id, "notify")
+        elif msg == "Рассылка":
+            toggle_setting(user_id, "mailing"
